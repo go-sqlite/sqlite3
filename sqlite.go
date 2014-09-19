@@ -1,3 +1,3 @@
-// Package sqlite decodes the SQLite file format
+// Package sqlite3 decodes the SQLite-3 file format
 //
-package sqlite
+package sqlite3

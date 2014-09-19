@@ -1,4 +1,4 @@
-package sqlite
+package sqlite3
 
 // cellInfo holds information about an on-disk cell.
 type cellInfo struct {

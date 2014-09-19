@@ -1,4 +1,4 @@
-package sqlite
+package sqlite3
 
 type btheader struct {
 	raw struct {
