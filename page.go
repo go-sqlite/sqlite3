@@ -48,6 +48,7 @@ func (pk PageKind) String() string {
 	panic("unreachable")
 }
 
+/*
 func newPage(i int, pb pageBuffer) (Page, error) {
 	pk := PageKind(pb.buf[0])
 	switch pk {
@@ -64,6 +65,7 @@ func newPage(i int, pb pageBuffer) (Page, error) {
 
 	panic(fmt.Errorf("invalid PageKind value (%d)", pk))
 }
+*/
 
 // Page is a page on disk
 type Page interface {
