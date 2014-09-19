@@ -1,51 +1,65 @@
 package sqlite3
 
+import (
+	"fmt"
+	"os"
+)
+
 type pager struct {
-	f     *File
-	pages map[int]Page
+	f      *os.File
+	size   int          // page size in bytes
+	npages int          // total number of pages in db
+	pages  map[int]page // cache of pages
+	lru    []int        // list of last used pages
 }
 
-func newPager(f *File) pager {
+func newPager(f *os.File, size, npages int) pager {
 	pager := pager{
-		f:     f,
-		pages: make(map[int]Page, f.NumPage()),
+		f:      f,
+		size:   size,
+		npages: npages,
+		pages:  make(map[int]page, npages),
+		lru:    make([]int, 0, 2),
 	}
 
 	return pager
 }
 
-func (p *pager) Page(i int) Page {
+func (p *pager) Page(i int) (page, error) {
+	var err error
 	page, ok := p.pages[i]
 	if ok {
-		return page
+		return page, err
 	}
 
-	if i > p.f.NumPage() {
-		panic("out of range")
+	if i > p.npages {
+		return page, fmt.Errorf("sqlite3: out of range (%d > %d)", i, p.npages)
 	}
 
-	pos, _ := p.f.f.Seek(0, 1)
-	defer p.f.f.Seek(pos, 0)
+	pos, _ := p.f.Seek(0, 1)
+	defer p.f.Seek(pos, 0)
 
-	buf := make([]byte, p.f.PageSize())
-	n, err := p.f.f.ReadAt(buf, int64(i*p.f.PageSize()))
+	buf := make([]byte, p.size)
+	n, err := p.f.ReadAt(buf, int64((i-1)*p.size))
 	if err != nil {
-		panic(err)
+		return page, err
 	}
 
 	if n != len(buf) {
-		panic("read too few bytes")
+		return page, fmt.Errorf("sqlite3: read too few bytes")
 	}
 
-	pb := pageBuffer{
-		pos: 0,
-		buf: buf,
-	}
+	page.id = i
+	page.buf = buf
 
-	page, err = newPage(i, pb)
-	if err != nil {
-		panic(err)
-	}
+	p.pages[i] = page
+	p.lru = append(p.lru, i)
+	return page, err
+}
 
-	return page
+func (p *pager) Delete() error {
+	var err error
+	p.pages = nil
+	p.lru = nil
+	return err
 }

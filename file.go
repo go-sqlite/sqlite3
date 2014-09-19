@@ -3,6 +3,8 @@ package sqlite3
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
 
 	"github.com/gonuts/binary"
 )
@@ -11,9 +13,10 @@ const (
 	sqlite3Magic = "SQLite format 3\x00"
 )
 
-type File struct {
-	f      *os.File
+type DbFile struct {
+	pager  pager
 	header dbHeader
+	tables []Table
 }
 
 type dbHeader struct {
@@ -50,7 +53,7 @@ type dbHeader struct {
 	SqliteVersion int32    // SQLITE_VERSION_NUMBER
 }
 
-func Open(fname string) (*File, error) {
+func Open(fname string) (*DbFile, error) {
 	f, err := os.Open(fname)
 	if err != nil {
 		return nil, err
@@ -62,17 +65,33 @@ func Open(fname string) (*File, error) {
 		}
 	}()
 
-	db := &File{f: f}
+	var db DbFile
 
-	dec := binary.NewDecoder(db.f)
+	dec := binary.NewDecoder(f)
 	dec.Order = binary.BigEndian
 	err = dec.Decode(&db.header)
 	if err != nil {
 		return nil, err
 	}
 
+	if db.header.DbSize == 0 {
+		// determine it based on the size of the database file.
+		// if the size of the database file is not an integer multiple of
+		// the page-size, round down to the nearest page.
+		// except, any file larger than 0-bytes in size, is considered to
+		// contain at least one page.
+		fi, err := f.Stat()
+		if err != nil {
+			return nil, err
+		}
+		sz := fi.Size()
+		pagesz := int64(db.header.PageSize)
+		npages := (sz + pagesz - 1) / pagesz
+		db.header.DbSize = int32(npages)
+	}
+
 	fmt.Printf("db: %#v\n", db.header)
-	_, err = db.f.Seek(0, 0)
+	_, err = f.Seek(0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -84,29 +103,116 @@ func Open(fname string) (*File, error) {
 			sqlite3Magic,
 		)
 	}
-	return db, err
+
+	db.pager = newPager(f, db.PageSize(), db.NumPage())
+
+	err = db.init()
+	if err != nil {
+		return nil, err
+	}
+
+	return &db, err
 }
 
-func (f *File) Close() error {
-	return f.f.Close()
+func (db *DbFile) Close() error {
+	db.pager.Delete()
+	return db.pager.f.Close()
 }
 
 // PageSize returns the database page size in bytes
-func (f *File) PageSize() int {
-	return int(f.header.PageSize)
+func (db *DbFile) PageSize() int {
+	return int(db.header.PageSize)
 }
 
 // NumPage returns the number of pages for this database
-func (f *File) NumPage() int {
-	return int(f.header.DbSize)
+func (db *DbFile) NumPage() int {
+	return int(db.header.DbSize)
 }
 
 // Encoding returns the text encoding for this database
-func (f *File) Encoding() int {
-	return int(f.header.DbEncoding)
+func (db *DbFile) Encoding() int {
+	return int(db.header.DbEncoding)
 }
 
 // Version returns the sqlite version number used to create this database
-func (f *File) Version() int {
-	return int(f.header.SqliteVersion)
+func (db *DbFile) Version() int {
+	return int(db.header.SqliteVersion)
+}
+
+func (db *DbFile) Tables() []Table {
+	return db.tables
+}
+
+func (db *DbFile) init() error {
+	// load sqlite_master
+	page, err := db.pager.Page(1)
+	if err != nil {
+		return err
+	}
+
+	if page.Kind() != BTreeLeafTableKind && page.Kind() != BTreeInteriorTableKind {
+		for i := 2; i < db.NumPage(); i++ {
+			page, err := db.pager.Page(i)
+			if err != nil {
+				return fmt.Errorf("sqlite3: error retrieving page-%d: %v", i, err)
+			}
+			fmt.Printf("page-%d: %v\n", i, page.Kind())
+		}
+		return fmt.Errorf("sqlite3: invalid page kind (%v)", page.Kind())
+	}
+
+	btree, err := newBtreeTable(page, &db.header)
+	if err != nil {
+		return err
+	}
+
+	if btree == nil {
+		return err
+	}
+
+	fmt.Printf(">>> bt-hdr: %#v\n", btree.btheader)
+	fmt.Printf(">>> init... (ncells=%d)\n", btree.NumCell())
+	for i := 0; i < btree.NumCell(); i++ {
+		rec, err := btree.load(i)
+		if err != nil {
+			return err
+		}
+
+		// {"table", "tbl1", "tbl1", 2, "CREATE TABLE tbl1(one varchar(10), two smallint)"} (body=62)
+		// {"table", "tbl2", "tbl2", 3, "CREATE TABLE tbl2(\n f1 varchar(30) primary key,\n f2 text,\n f3 real\n)"}
+		if len(rec.Values) != 5 {
+			return fmt.Errorf("sqlite3: invalid table format")
+		}
+
+		rectype := rec.Values[0].(string)
+		if rectype != "table" {
+			continue
+		}
+
+		pageid := reflect.ValueOf(rec.Values[3])
+		table := Table{
+			name:   rec.Values[1].(string),
+			pageid: int(pageid.Int()),
+		}
+
+		def := rec.Values[4].(string)
+		def = strings.Replace(def, "CREATE TABLE "+table.name, "", 1)
+		def = strings.Replace(def, "\n", "", -1)
+		def = strings.TrimSpace(def)
+		if def[0] == '(' {
+			def = def[1:]
+		}
+		if def[len(def)-1] == ')' {
+			def = def[:len(def)-1]
+		}
+		def = strings.TrimSpace(def)
+
+		ncols := strings.Count(def, ",") + 1
+		table.cols = make([]Column, ncols)
+		fmt.Printf(">>> def: %q => ncols=%d\n", def, len(table.cols))
+
+		db.tables = append(db.tables, table)
+	}
+
+	return err
 }

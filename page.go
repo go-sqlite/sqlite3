@@ -22,7 +22,7 @@ const (
 	leafDataKind          = 0x04
 	leafKind              = 0x08
 
-	BTreeInteriorIndexKind = intKeyKind
+	BTreeInteriorIndexKind = zeroDataKind
 	BTreeInteriorTableKind = leafDataKind | intKeyKind
 	BTreeLeafIndexKind     = zeroDataKind | leafKind
 	BTreeLeafTableKind     = leafDataKind | intKeyKind | leafKind
@@ -45,7 +45,8 @@ func (pk PageKind) String() string {
 	case BTreeLeafTableKind:
 		return "BTreeLeafTable"
 	}
-	panic("unreachable")
+
+	panic(fmt.Sprintf("sqlite3: invalid PageKind value (0x%02x)", byte(pk)))
 }
 
 /*
@@ -67,20 +68,30 @@ func newPage(i int, pb pageBuffer) (Page, error) {
 }
 */
 
-// Page is a page on disk
-type Page interface {
-	ID() int        // page number. starts at 1. id=0 means no page.
-	Kind() PageKind // the kind of page
-	Size() int      // the size of the page in bytes
-}
-
-// pageBuffer
-type pageBuffer struct {
+// page is a page loaded from disk.
+type page struct {
+	id  int
 	pos int
 	buf []byte
 }
 
-func (p *pageBuffer) Seek(offset int64, whence int) (ret int64, err error) {
+func (p *page) ID() int {
+	return p.id
+}
+
+func (p *page) Kind() PageKind {
+	offset := 0
+	if p.id == 1 {
+		offset = 100
+	}
+	return PageKind(p.buf[0+offset])
+}
+
+func (p *page) PageSize() int {
+	return len(p.buf)
+}
+
+func (p *page) Seek(offset int64, whence int) (ret int64, err error) {
 	switch whence {
 	case 0:
 		offset := int(offset)
@@ -106,15 +117,15 @@ func (p *pageBuffer) Seek(offset int64, whence int) (ret int64, err error) {
 	return int64(p.pos), nil
 }
 
-func (p *pageBuffer) Pos() int {
+func (p *page) Pos() int {
 	return p.pos
 }
 
-func (p *pageBuffer) Bytes() []byte {
+func (p *page) Bytes() []byte {
 	return p.buf[p.pos:]
 }
 
-func (p *pageBuffer) Decode(ptr interface{}) error {
+func (p *page) Decode(ptr interface{}) error {
 	n, err := unmarshal(p.buf[p.pos:], ptr)
 	if err != nil {
 		return err
@@ -123,7 +134,7 @@ func (p *pageBuffer) Decode(ptr interface{}) error {
 	return err
 }
 
-func (p *pageBuffer) Read(data []byte) (int, error) {
+func (p *page) Read(data []byte) (int, error) {
 	n := copy(data, p.buf[p.pos:p.pos+len(data)])
 	if n != len(data) {
 		return n, fmt.Errorf("error. read too few bytes: %d. want %d", n, len(data))
@@ -132,7 +143,7 @@ func (p *pageBuffer) Read(data []byte) (int, error) {
 	return n, nil
 }
 
-func (p *pageBuffer) Uvarint() (uint64, int) {
+func (p *page) Uvarint() (uint64, int) {
 	v, n := uvarint(p.Bytes())
 	if n <= 0 {
 		return v, n
