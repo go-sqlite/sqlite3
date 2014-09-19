@@ -41,3 +41,11 @@ func (btree *btreeLeafTable) ID() int {
 func (btree *btreeLeafTable) Size() int {
 	return len(btree.page.buf)
 }
+
+type btreeInteriorTable struct {
+	btheader
+	pointer int32 // right most pointer
+
+	id   int
+	page pageBuffer
+}
