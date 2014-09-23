@@ -8,7 +8,7 @@ described by:
 ## Installation
 
 ```sh
-$ go get github.com/gonuts/sqlite3
+$ go get github.com/sbinet/sqlite3
 ```
 
 ## Example
@@ -19,7 +19,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/gonuts/sqlite3"
+	"github.com/sbinet/sqlite3"
 )
 
 func main() {
@@ -37,5 +37,5 @@ func main() {
 
 ## Documentation
 
-Documentation is available on [godoc](http://godoc.org/github.com/gonuts/sqlite3)
+Documentation is available on [godoc](http://godoc.org/github.com/sbinet/sqlite3)
 
