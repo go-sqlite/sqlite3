@@ -92,12 +92,12 @@ func (btree *btreeTable) init() error {
 
 	cells := make([]int16, btree.NumCell())
 	for icell, addr := range cells {
-		fmt.Printf("   cell= %d/%d... (%d)\n", icell+1, len(cells), btree.page.Pos())
+		// fmt.Printf("   cell= %d/%d... (%d)\n", icell+1, len(cells), btree.page.Pos())
 		err = btree.page.Decode(&addr)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("   cell= %d/%d... (%d) => %d\n", icell+1, len(cells), btree.page.Pos(), addr)
+		// fmt.Printf("   cell= %d/%d... (%d) => %d\n", icell+1, len(cells), btree.page.Pos(), addr)
 		cells[icell] = addr
 	}
 
@@ -258,6 +258,7 @@ func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
 			Key:   int64(pgno),
 			RowID: int64(rowid),
 		}
+		// fmt.Printf(">>> cell: %#v\n", cell)
 
 	case BTreeLeafIndexKind:
 		panic("not implemented")

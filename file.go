@@ -144,6 +144,7 @@ func (db *DbFile) Tables() []Table {
 }
 
 func (db *DbFile) init() error {
+
 	// load sqlite_master
 	page, err := db.pager.Page(1)
 	if err != nil {
@@ -151,13 +152,6 @@ func (db *DbFile) init() error {
 	}
 
 	if page.Kind() != BTreeLeafTableKind && page.Kind() != BTreeInteriorTableKind {
-		for i := 2; i < db.NumPage(); i++ {
-			page, err := db.pager.Page(i)
-			if err != nil {
-				return fmt.Errorf("sqlite3: error retrieving page-%d: %v", i, err)
-			}
-			fmt.Printf("page-%d: %v\n", i, page.Kind())
-		}
 		return fmt.Errorf("sqlite3: invalid page kind (%v)", page.Kind())
 	}
 
