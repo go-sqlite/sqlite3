@@ -210,3 +210,43 @@ func (db *DbFile) init() error {
 
 	return err
 }
+
+func (db *DbFile) Dumpdb() error {
+	var err error
+	for i := 1; i < db.NumPage(); i++ {
+		page, err := db.pager.Page(i)
+		if err != nil {
+			fmt.Printf("error: sqlite3: error retrieving page-%d: %v\n", i, err)
+			continue
+		}
+		fmt.Printf("page-%d: %v\n", i, page.Kind())
+		btree, err := newBtreeTable(page, &db.header)
+		if err != nil {
+			fmt.Printf("** error: %v\n", err)
+			continue
+		}
+		for i := 0; i < btree.NumCell(); i++ {
+			addr := btree.addrs[i]
+			_, err := btree.page.Seek(int64(addr), 0)
+			if err != nil {
+				fmt.Printf("** error: %v\n", err)
+				continue
+			}
+
+			cell, err := btree.parseCell(i)
+			if err != nil {
+				fmt.Printf("** error: %v\n", err)
+				continue
+			}
+			fmt.Printf("--- cell[%03d/%03d]= key=%d row=%d payload=%d overflow=%d\n",
+				i+1, btree.NumCell(),
+				cell.Key,
+				cell.RowID,
+				len(cell.Payload),
+				cell.OverflowPage,
+			)
+		}
+	}
+
+	return err
+}
