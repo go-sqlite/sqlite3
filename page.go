@@ -1,6 +1,9 @@
 package sqlite3
 
-import "fmt"
+import (
+	"fmt"
+	"io"
+)
 
 // PageKind describes what kind of page is.
 type PageKind byte
@@ -135,6 +138,9 @@ func (p *page) Decode(ptr interface{}) error {
 }
 
 func (p *page) Read(data []byte) (int, error) {
+	if p.pos >= len(p.buf) {
+		return 0, io.EOF
+	}
 	n := copy(data, p.buf[p.pos:p.pos+len(data)])
 	if n != len(data) {
 		return n, fmt.Errorf("error. read too few bytes: %d. want %d", n, len(data))
