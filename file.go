@@ -1,6 +1,7 @@
 package sqlite3
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"reflect"
@@ -189,7 +190,19 @@ func (db *DbFile) init() error {
 			pageid: int(pageid.Int()),
 		}
 
-		def := rec.Values[4].(string)
+		var def = ""
+		switch vv := rec.Values[4].(type) {
+		case string:
+			def = vv
+		case []uint8:
+			i := bytes.IndexByte(vv, 0)
+			if i < 0 {
+				i = 0
+			}
+			def = string(vv[:i])
+		default:
+			panic(fmt.Errorf("sqlite3: unknown type %T", vv))
+		}
 		def = strings.Replace(def, "CREATE TABLE "+table.name, "", 1)
 		def = strings.Replace(def, "\n", "", -1)
 		def = strings.TrimSpace(def)
