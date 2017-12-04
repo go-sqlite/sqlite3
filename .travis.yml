@@ -1,0 +1,22 @@
+language: go
+go:
+  - 1.7.x
+  - 1.8.x
+  - 1.9.x
+  - master
+os:
+  - linux
+matrix:
+ fast_finish: true
+ allow_failures:
+   - go: master
+
+sudo: false
+
+notifications:
+  email:
+    recipients:
+      - seb.binet@gmail.com
+    on_success: always
+    on_failure: always
+
