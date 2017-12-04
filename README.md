@@ -1,5 +1,6 @@
-sqlite3
-=======
+# sqlite3
+
+[![Build Status](https://travis-ci.org/sbinet/sqlite3.svg?branch=master)](https://travis-ci.org/sbinet/sqlite3)
 
 `sqlite3` is a pure Go package decoding the `SQLite` file format as
 described by:
