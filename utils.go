@@ -6,7 +6,6 @@ package sqlite3
 
 import (
 	"bytes"
-	bb "encoding/binary"
 
 	"github.com/gonuts/binary"
 )
@@ -29,5 +28,18 @@ func unmarshal(buf []byte, ptr interface{}) (int64, error) {
 }
 
 func uvarint(data []byte) (uint64, int) {
-	return bb.Uvarint(data)
+	var val uint64
+	for i := 0; i < 8; i++ {
+		if i > len(data)-1 {
+			return 0, 0
+		}
+		val = (val << 7) | uint64(data[i]&0x7f)
+		if data[i] <= 0x80 {
+			return val, i + 1
+		}
+	}
+	if len(data) < 9 {
+		return 0, 0
+	}
+	return (val << 8) | uint64(data[8]), 9
 }
