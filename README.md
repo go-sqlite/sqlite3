@@ -1,5 +1,6 @@
 # sqlite3
 
+[![GoDoc](https://godoc.org/github.com/sbinet/sqlite3?status.svg)](https://godoc.org/github.com/sbinet/sqlite3)
 [![Build Status](https://travis-ci.org/sbinet/sqlite3.svg?branch=master)](https://travis-ci.org/sbinet/sqlite3)
 
 `sqlite3` is a pure Go package decoding the `SQLite` file format as
@@ -35,8 +36,3 @@ func main() {
 	}
 }
 ```
-
-## Documentation
-
-Documentation is available on [godoc](http://godoc.org/github.com/sbinet/sqlite3)
-
