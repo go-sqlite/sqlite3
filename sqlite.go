@@ -3,4 +3,4 @@
 // license that can be found in the LICENSE file.
 
 // Package sqlite3 decodes the SQLite-3 file format.
-package sqlite3
+package sqlite3 // import "github.com/go-sqlite/sqlite3"
