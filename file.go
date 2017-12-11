@@ -163,12 +163,8 @@ func (db *DbFile) init() error {
 		return fmt.Errorf("sqlite3: invalid page kind (%v)", page.Kind())
 	}
 
-	btree, err := newBtreeTable(page, &db.header)
+	btree, err := newBtreeTable(page, db)
 	if err != nil {
-		return err
-	}
-
-	if btree == nil {
 		return err
 	}
 
@@ -176,12 +172,8 @@ func (db *DbFile) init() error {
 		fmt.Printf(">>> bt-hdr: %#v\n", btree.btheader)
 		fmt.Printf(">>> init... (ncells=%d)\n", btree.NumCell())
 	}
-	for i := 0; i < btree.NumCell(); i++ {
-		rec, err := btree.load(i)
-		if err != nil {
-			return err
-		}
 
+	return btree.visitRecordsInorder(func(_ *int64, rec Record) error {
 		// {"table", "tbl1", "tbl1", 2, "CREATE TABLE tbl1(one varchar(10), two smallint)"} (body=62)
 		// {"table", "tbl2", "tbl2", 3, "CREATE TABLE tbl2(\n f1 varchar(30) primary key,\n f2 text,\n f3 real\n)"}
 		if len(rec.Values) != 5 {
@@ -190,7 +182,7 @@ func (db *DbFile) init() error {
 
 		rectype := rec.Values[0].(string)
 		if rectype != "table" {
-			continue
+			return nil
 		}
 
 		pageid := reflect.ValueOf(rec.Values[3])
@@ -218,9 +210,8 @@ func (db *DbFile) init() error {
 		}
 
 		db.tables = append(db.tables, table)
-	}
-
-	return err
+		return nil
+	})
 }
 
 func (db *DbFile) Dumpdb() error {
@@ -232,27 +223,20 @@ func (db *DbFile) Dumpdb() error {
 			continue
 		}
 		fmt.Printf("page-%d: %v\n", i, page.Kind())
-		btree, err := newBtreeTable(page, &db.header)
+		btree, err := newBtreeTable(page, db)
 		if err != nil {
 			fmt.Printf("** error: %v\n", err)
 			continue
 		}
 		for i := 0; i < btree.NumCell(); i++ {
-			addr := btree.addrs[i]
-			_, err := btree.page.Seek(int64(addr), 0)
+			cell, err := btree.loadCell(i)
 			if err != nil {
 				fmt.Printf("** error: %v\n", err)
 				continue
 			}
-
-			cell, err := btree.parseCell(i)
-			if err != nil {
-				fmt.Printf("** error: %v\n", err)
-				continue
-			}
-			fmt.Printf("--- cell[%03d/%03d]= key=%d row=%d payload=%d overflow=%d\n",
+			fmt.Printf("--- cell[%03d/%03d]= leftchildpage=%d row=%d payload=%d overflow=%d\n",
 				i+1, btree.NumCell(),
-				cell.Key,
+				cell.LeftChildPage,
 				cell.RowID,
 				len(cell.Payload),
 				cell.OverflowPage,
