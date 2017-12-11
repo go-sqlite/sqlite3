@@ -7,6 +7,15 @@
 described by:
  http://www.sqlite.org/fileformat.html
 
+## Current status
+
+**WIP**: The near-term aim for `sqlite3` is to iterate through the
+data in tables in `SQLite` files: ie., readonly access, and no actual
+SQL queries.
+
+It doesn't quite do that yet: so far it just parses the
+`sqlite_master` data enough to find a list of tables and their names.
+
 ## Installation
 
 ```sh
