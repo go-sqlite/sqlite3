@@ -22,9 +22,9 @@ The locking page
 
 const (
 	intKeyKind   PageKind = 0x01
-	zeroDataKind          = 0x02
-	leafDataKind          = 0x04
-	leafKind              = 0x08
+	zeroDataKind PageKind = 0x02
+	leafDataKind PageKind = 0x04
+	leafKind     PageKind = 0x08
 
 	BTreeInteriorIndexKind = zeroDataKind
 	BTreeInteriorTableKind = leafDataKind | intKeyKind

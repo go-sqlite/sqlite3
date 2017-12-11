@@ -38,13 +38,13 @@ func (bt *btheader) CellsAddr() int {
 
 type btreeTable struct {
 	btheader
-	dbhdr   *dbHeader
+	db      *DbFile
 	pointer int32   // right most pointer (only valid for interior pages
 	page    page    // page backing this b-tree leaf
 	addrs   []int16 // cell addresses
 }
 
-func newBtreeTable(page page, dbhdr *dbHeader) (*btreeTable, error) {
+func newBtreeTable(page page, db *DbFile) (*btreeTable, error) {
 	var hdr btheader
 	if page.ID() == 1 {
 		// drop first 100-bytes (global file header)
@@ -61,7 +61,7 @@ func newBtreeTable(page page, dbhdr *dbHeader) (*btreeTable, error) {
 
 	btree := &btreeTable{
 		btheader: hdr,
-		dbhdr:    dbhdr,
+		db:       db,
 		page:     page,
 	}
 
@@ -109,21 +109,11 @@ func (btree *btreeTable) init() error {
 	return err
 }
 
-func (btree *btreeTable) load(icell int) (Record, error) {
+func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 	var rec Record
-	addr := btree.addrs[icell]
-	_, err := btree.page.Seek(int64(addr), 0)
-	if err != nil {
-		return rec, err
-	}
-
-	cell, err := btree.parseCell(icell)
-	if err != nil {
-		return rec, err
-	}
 
 	// decode record
-	recbuf := cell.Payload[:]
+	recbuf := payload[:]
 	rhdrsz, n := uvarint(recbuf)
 	if n <= 0 {
 		return rec, fmt.Errorf("sqlite3: error decoding record header (n=%d)", n)
@@ -218,7 +208,7 @@ func (btree *btreeTable) load(icell int) (Record, error) {
 				recbuf = recbuf[int(n):]
 				// FIXME(sbinet)
 				// handle db string encoding
-				switch btree.dbhdr.DbEncoding {
+				switch btree.db.header.DbEncoding {
 				case 1:
 					s := string(vv)
 					idx := strings.Index(s, "\x00")
@@ -236,10 +226,18 @@ func (btree *btreeTable) load(icell int) (Record, error) {
 	}
 	// fmt.Printf(">>> record: %#v (body=%d)\n", rec.Values, len(rec.Body))
 
-	return rec, err
+	return rec, nil
 }
 
-func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
+func (btree *btreeTable) loadCell(icell int) (cellInfo, error) {
+	addr := btree.addrs[icell]
+	if _, err := btree.page.Seek(int64(addr), 0); err != nil {
+		return cellInfo{}, err
+	}
+	return btree.parseCell()
+}
+
+func (btree *btreeTable) parseCell() (cellInfo, error) {
 	var cell cellInfo
 	var err error
 
@@ -247,7 +245,7 @@ func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
 	case BTreeInteriorIndexKind:
 		panic("not implemented")
 	case BTreeInteriorTableKind:
-		var pgno uint32 // page number of left child
+		var pgno int32 // page number of left child
 		err = btree.page.Decode(&pgno)
 		if err != nil {
 			return cell, fmt.Errorf("sqlite3: error decoding page number: %v", err)
@@ -258,9 +256,11 @@ func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
 			return cell, fmt.Errorf("sqlite3: error decoding rowid: n=%d", nrow)
 		}
 
+		signedRowid := int64(rowid)
+
 		cell = cellInfo{
-			Key:   int64(pgno),
-			RowID: int64(rowid),
+			LeftChildPage: int32(pgno),
+			RowID:         &signedRowid,
 		}
 		// fmt.Printf(">>> cell: %#v\n", cell)
 
@@ -277,11 +277,13 @@ func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
 			return cell, fmt.Errorf("sqlite3: error decoding rowid: n=%d", nrow)
 		}
 
+		signedRowid := int64(rowid)
+
 		// sz is the total payload size.
 		// check if all of it is in the b-tree leaf page or
 		// if it spilled over to other pages
 		localsz := int(sz)
-		U := btree.page.PageSize() - int(btree.dbhdr.NReserved)
+		U := btree.page.PageSize() - int(btree.db.header.NReserved)
 		M := int(((U - 12) * 32 / 255.) - 23)
 		P := int(sz)
 		if P > U-35 {
@@ -301,8 +303,7 @@ func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
 		}
 
 		cell = cellInfo{
-			Key:     int64(sz),
-			RowID:   int64(rowid),
+			RowID:   &signedRowid,
 			Payload: payload,
 		}
 
@@ -332,10 +333,73 @@ func (btree *btreeTable) parseCell(icell int) (cellInfo, error) {
 	return cell, err
 }
 
-type btreeInteriorTable struct {
-	btheader
-	pointer int32 // right most pointer
+// Perform inorder traversal of all cells in the btree and its
+// children, passing each raw cell to the visitor function `f`.
+func (btree *btreeTable) visitRawInorder(f func(cellInfo) error) error {
+	btreeHasData := btree.Kind() != BTreeInteriorTableKind
 
-	id   int
-	page page
+	for i := 0; i < btree.NumCell(); i++ {
+		cell, err := btree.loadCell(i)
+		if err != nil {
+			return err
+		}
+
+		if cell.LeftChildPage != 0 {
+			page, err := btree.db.pager.Page(int(cell.LeftChildPage))
+			if err != nil {
+				return err
+			}
+
+			childBtree, err := newBtreeTable(page, btree.db)
+			if err != nil {
+				return err
+			}
+
+			if err := childBtree.visitRawInorder(f); err != nil {
+				return err
+			}
+		}
+
+		// Skip the call to f for interior table btrees: they have no
+		// actual data.
+		if btreeHasData {
+			if err := f(cell); err != nil {
+				return err
+			}
+		}
+	}
+
+	if btree.pointer != 0 {
+		page, err := btree.db.pager.Page(int(btree.pointer))
+		if err != nil {
+			return err
+		}
+
+		childBtree, err := newBtreeTable(page, btree.db)
+		if err != nil {
+			return err
+		}
+
+		if err := childBtree.visitRawInorder(f); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// Perform inorder traversal of all cells in the btree and its
+// children, passing the record-decoded payload of each cell to the
+// visitor function `f`.
+func (btree *btreeTable) visitRecordsInorder(f func(*int64, Record) error) error {
+	return btree.visitRawInorder(func(ci cellInfo) error {
+		if len(ci.Payload) == 0 {
+			return nil
+		}
+		if rec, err := btree.decodeRecord(ci.Payload); err != nil {
+			return err
+		} else {
+			return f(ci.RowID, rec)
+		}
+	})
 }
