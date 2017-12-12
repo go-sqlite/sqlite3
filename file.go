@@ -15,6 +15,8 @@ import (
 
 const (
 	sqlite3Magic = "SQLite format 3\x00"
+
+	printfDebug = false
 )
 
 type DbFile struct {
@@ -94,7 +96,9 @@ func Open(fname string) (*DbFile, error) {
 		db.header.DbSize = int32(npages)
 	}
 
-	fmt.Printf("db: %#v\n", db.header)
+	if printfDebug {
+		fmt.Printf("db: %#v\n", db.header)
+	}
 	_, err = f.Seek(0, 0)
 	if err != nil {
 		return nil, err
@@ -168,8 +172,10 @@ func (db *DbFile) init() error {
 		return err
 	}
 
-	fmt.Printf(">>> bt-hdr: %#v\n", btree.btheader)
-	fmt.Printf(">>> init... (ncells=%d)\n", btree.NumCell())
+	if printfDebug {
+		fmt.Printf(">>> bt-hdr: %#v\n", btree.btheader)
+		fmt.Printf(">>> init... (ncells=%d)\n", btree.NumCell())
+	}
 	for i := 0; i < btree.NumCell(); i++ {
 		rec, err := btree.load(i)
 		if err != nil {
@@ -207,7 +213,9 @@ func (db *DbFile) init() error {
 
 		ncols := strings.Count(def, ",") + 1
 		table.cols = make([]Column, ncols)
-		fmt.Printf(">>> def: %q => ncols=%d\n", def, len(table.cols))
+		if printfDebug {
+			fmt.Printf(">>> def: %q => ncols=%d\n", def, len(table.cols))
+		}
 
 		db.tables = append(db.tables, table)
 	}
