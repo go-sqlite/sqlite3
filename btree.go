@@ -6,6 +6,7 @@ package sqlite3
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -124,11 +125,8 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 	for ii := 0; ii < rec.Header.Len; {
 		v, n := varint(recbuf)
 		// fmt.Printf("ii=%d nn=%d len=%d\n", ii, n, rec.Header.Len)
-		if n < 0 {
+		if n <= 0 {
 			return rec, fmt.Errorf("sqlite3: error decoding record header type (n=%d)", n)
-		}
-		if n == 0 {
-			break
 		}
 		recbuf = recbuf[n:]
 		ii += int(n)
@@ -282,24 +280,27 @@ func (btree *btreeTable) parseCell() (cellInfo, error) {
 		// sz is the total payload size.
 		// check if all of it is in the b-tree leaf page or
 		// if it spilled over to other pages
-		localsz := int(sz)
-		U := btree.page.PageSize() - int(btree.db.header.NReserved)
-		M := int(((U - 12) * 32 / 255.) - 23)
 		P := int(sz)
-		if P > U-35 {
-			vv := M + ((P - M) % (U - 4))
-			localsz = min(vv, U-35)
+		U := btree.page.PageSize() - int(btree.db.header.NReserved)
+		X := U - 35
+		localsz := P
+		overflowsz := 0
+		if P > X {
+			M := int(((U - 12) * 32 / 255) - 23)
+			K := M + ((P - M) % (U - 4))
+			localsz = K
+			if K > X {
+				localsz = M
+			}
+			overflowsz = P - localsz
 		}
 
 		// FIXME(sbinet): only create a new payload []byte when non-local
 		// ie: when there is an overflow page
 		payload := make([]byte, localsz, localsz)
-		n, err := btree.page.Read(payload)
+		_, err := io.ReadFull(&btree.page, payload)
 		if err != nil {
 			return cell, err
-		}
-		if n != localsz {
-			return cell, fmt.Errorf("read too few bytes: %d. want %d", n, localsz)
 		}
 
 		cell = cellInfo{
@@ -312,12 +313,16 @@ func (btree *btreeTable) parseCell() (cellInfo, error) {
 			if err != nil {
 				return cell, err
 			}
-			// FIXME(sbinet)
-			// - locate overflow-page (and following)
-			// - load payload
-			// - append into cell.Payload
 
-			panic("not implemented")
+			overflow, err := btree.readOverflow(cell.OverflowPage, overflowsz)
+			if err != nil {
+				return cell, err
+			}
+			cell.Payload = append(cell.Payload, overflow...)
+		}
+
+		if len(cell.Payload) != int(sz) {
+			panic(fmt.Errorf("read %d payload bytes instead of %d", len(cell.Payload), sz))
 		}
 
 		// fmt.Printf(" => size=%d rowid=%d overflow=%d (bytes: %d %d) [%d]\n",
@@ -331,6 +336,49 @@ func (btree *btreeTable) parseCell() (cellInfo, error) {
 
 	}
 	return cell, err
+}
+
+// readOverflow reads `size` overflow page bytes, starting at page
+// `pageNum`, following the linked list of overflow pages as
+// necessary.
+func (btree *btreeTable) readOverflow(pageNum int32, size int) ([]byte, error) {
+	usable := btree.page.PageSize() - int(btree.db.header.NReserved)
+	sizeLeft := size
+
+	result := make([]byte, 0, size)
+
+	for pageNum != 0 {
+		if sizeLeft == 0 {
+			return nil, fmt.Errorf("read all %d bytes but still have overflow page %d", size, pageNum)
+		}
+		page, err := btree.db.pager.Page(int(pageNum))
+		if err != nil {
+			return nil, err
+		}
+
+		err = page.Decode(&pageNum)
+		if err != nil {
+			return nil, err
+		}
+
+		buf := make([]byte, min(sizeLeft, usable-4))
+		n, err := page.Read(buf)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, buf...)
+		sizeLeft = sizeLeft - n
+	}
+
+	if sizeLeft != 0 {
+		return nil, fmt.Errorf("ran out of overflow pages with %d of %d bytes left unread", sizeLeft, size)
+	}
+
+	if len(result) != size {
+		panic(fmt.Errorf("read %d overflow bytes instead of %d", len(result), size))
+	}
+	return result, nil
 }
 
 // Perform inorder traversal of all cells in the btree and its
