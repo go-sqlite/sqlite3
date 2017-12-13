@@ -246,3 +246,25 @@ func (db *DbFile) Dumpdb() error {
 
 	return err
 }
+
+// VisitTableRecords performs an inorder traversal of all cells in the
+// btree for the table with the given name, passing the (optional,
+// hence nullable) RowID, and record-decoded payload of each cell to
+// the visitor function `f`.
+func (db *DbFile) VisitTableRecords(tableName string, f func(*int64, Record) error) error {
+	for _, table := range db.tables {
+		if table.name != tableName {
+			continue
+		}
+		page, err := db.pager.Page(table.pageid)
+		if err != nil {
+			return err
+		}
+		btree, err := newBtreeTable(page, db)
+		if err != nil {
+			return err
+		}
+		return btree.visitRecordsInorder(f)
+	}
+	return fmt.Errorf("unknown table %q", tableName)
+}
