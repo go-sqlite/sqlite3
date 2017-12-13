@@ -27,19 +27,19 @@ func unmarshal(buf []byte, ptr interface{}) (int64, error) {
 	return int64(n), err
 }
 
-func uvarint(data []byte) (uint64, int) {
+func varint(data []byte) (int64, int) {
 	var val uint64
 	for i := 0; i < 8; i++ {
 		if i > len(data)-1 {
 			return 0, 0
 		}
 		val = (val << 7) | uint64(data[i]&0x7f)
-		if data[i] <= 0x80 {
-			return val, i + 1
+		if data[i] < 0x80 {
+			return int64(val), i + 1
 		}
 	}
 	if len(data) < 9 {
 		return 0, 0
 	}
-	return (val << 8) | uint64(data[8]), 9
+	return int64((val << 8) | uint64(data[8])), 9
 }

@@ -114,7 +114,7 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 
 	// decode record
 	recbuf := payload[:]
-	rhdrsz, n := uvarint(recbuf)
+	rhdrsz, n := varint(recbuf)
 	if n <= 0 {
 		return rec, fmt.Errorf("sqlite3: error decoding record header (n=%d)", n)
 	}
@@ -122,7 +122,7 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 
 	rec.Header.Len = int(rhdrsz) - n
 	for ii := 0; ii < rec.Header.Len; {
-		v, n := uvarint(recbuf)
+		v, n := varint(recbuf)
 		// fmt.Printf("ii=%d nn=%d len=%d\n", ii, n, rec.Header.Len)
 		if n < 0 {
 			return rec, fmt.Errorf("sqlite3: error decoding record header type (n=%d)", n)
@@ -251,7 +251,7 @@ func (btree *btreeTable) parseCell() (cellInfo, error) {
 			return cell, fmt.Errorf("sqlite3: error decoding page number: %v", err)
 		}
 
-		rowid, nrow := btree.page.Uvarint()
+		rowid, nrow := btree.page.Varint()
 		if nrow <= 0 {
 			return cell, fmt.Errorf("sqlite3: error decoding rowid: n=%d", nrow)
 		}
@@ -267,12 +267,12 @@ func (btree *btreeTable) parseCell() (cellInfo, error) {
 	case BTreeLeafIndexKind:
 		panic("not implemented")
 	case BTreeLeafTableKind:
-		sz, nsz := btree.page.Uvarint()
+		sz, nsz := btree.page.Varint()
 		if nsz <= 0 {
 			return cell, fmt.Errorf("sqlite3: error decoding cell size: n=%d", nsz)
 		}
 
-		rowid, nrow := btree.page.Uvarint()
+		rowid, nrow := btree.page.Varint()
 		if nrow <= 0 {
 			return cell, fmt.Errorf("sqlite3: error decoding rowid: n=%d", nrow)
 		}

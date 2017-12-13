@@ -147,8 +147,8 @@ func (p *page) Read(data []byte) (int, error) {
 	return n, nil
 }
 
-func (p *page) Uvarint() (uint64, int) {
-	v, n := uvarint(p.Bytes())
+func (p *page) Varint() (int64, int) {
+	v, n := varint(p.Bytes())
 	if n <= 0 {
 		return v, n
 	}
