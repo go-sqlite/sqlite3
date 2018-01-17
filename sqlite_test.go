@@ -15,18 +15,62 @@ func TestFileOpen(t *testing.T) {
 		version int
 		npages  int
 		pagesz  int
+		tables []Table
 	}{
 		{
 			fname:   "testdata/test-1.sqlite",
 			version: 3008006,
 			npages:  2,
 			pagesz:  1024,
+			tables: []Table{
+				Table{
+					name: "tbl1",
+					pageid: 2,
+					cols: []Column{
+						Column{
+							name: "one",
+						},
+						Column{
+							name: "two",
+						},
+					},
+				},
+			},
 		},
 		{
 			fname:   "testdata/test-2.sqlite",
 			version: 3008006,
 			npages:  4,
 			pagesz:  1024,
+			tables: []Table{
+				Table{
+					name: "tbl1",
+					pageid: 2,
+					cols: []Column{
+						Column{
+							name: "one",
+						},
+						Column{
+							name: "two",
+						},
+					},
+				},
+				Table{
+					name: "tbl2",
+					pageid: 3,
+					cols: []Column{
+						Column{
+							name: "f1",
+						},
+						Column{
+							name: "f2",
+						},
+						Column{
+							name: "f3",
+						},
+					},
+				},
+			},
 		},
 	} {
 		f, err := Open(test.fname)
@@ -45,6 +89,28 @@ func TestFileOpen(t *testing.T) {
 
 		if f.NumPage() != test.npages {
 			t.Fatalf("%s: num-pages = %d. want=%d", test.fname, f.NumPage(), test.npages)
+		}
+
+		// Check tables
+		if len(f.Tables()) != len(test.tables) {
+			t.Fatalf("%s: tables=%d, want=%d", test.fname, len(f.Tables()), len(test.tables))
+		}
+		for i := range f.Tables() {
+			ftbl := f.Tables()[i]
+			if ftbl.name != test.tables[i].name {
+				t.Error("table name: got=%q, want=%q", ftbl.name, test.tables[i].name)
+			}
+			if ftbl.pageid != test.tables[i].pageid {
+				t.Error("table pageid: got=%d, want=%d", ftbl.pageid, test.tables[i].pageid)
+			}
+			if len(ftbl.cols) != len(test.tables[i].cols) {
+				t.Error("table %s cols: got=%v, want=%v", ftbl.name, ftbl.cols, test.tables[i].cols)
+			}
+			for j := range ftbl.cols {
+				if ftbl.cols[j].name != test.tables[i].cols[j].name {
+					t.Errorf("table %s column: got=%q, want=%q", ftbl.name, ftbl.cols[j].name, test.tables[i].cols[j].name)
+				}
+			}
 		}
 	}
 

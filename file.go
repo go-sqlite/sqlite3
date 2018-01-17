@@ -203,8 +203,14 @@ func (db *DbFile) init() error {
 		}
 		def = strings.TrimSpace(def)
 
-		ncols := strings.Count(def, ",") + 1
-		table.cols = make([]Column, ncols)
+		parts := strings.Split(def, ",")
+		table.cols = make([]Column, len(parts))
+		for i := range parts {
+			parts[i] = strings.TrimSpace(parts[i])
+			idx := strings.Index(parts[i], " ")
+			table.cols[i].name = parts[i][:idx]
+		}
+
 		if printfDebug {
 			fmt.Printf(">>> def: %q => ncols=%d\n", def, len(table.cols))
 		}
