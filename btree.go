@@ -157,12 +157,26 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 			recbuf = recbuf[int(n):]
 			v = vv
 
+		case StInt24:
+			bs := make([]byte, 3)
+			n64, n := varint(bs)
+			var vv int32 = int32(n64)
+			recbuf = recbuf[int(n):]
+			v = vv
+
 		case StInt32:
 			var vv int32
 			n, err := unmarshal(recbuf, &vv)
 			if err != nil {
 				panic(err)
 			}
+			recbuf = recbuf[int(n):]
+			v = vv
+
+		case StInt48:
+			bs := make([]byte, 6)
+			n64, n := varint(bs)
+			var vv int64 = int64(n64)
 			recbuf = recbuf[int(n):]
 			v = vv
 
@@ -189,9 +203,6 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 
 		case StC1:
 			v = 1
-
-		case StInt24, StInt48:
-			panic("not implemented")
 
 		default:
 			if st.IsBlob() {
