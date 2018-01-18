@@ -72,6 +72,20 @@ func TestFileOpen(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Chrome history sqlite db
+			fname: "testdata/chrome-history.sqlite",
+			version: 3020000,
+			npages: 28,
+			pagesz: 4096,
+		},
+		{
+			// Firefox history sqlite db
+			fname: "testdata/firefox-history.sqlite",
+			version: 3020001,
+			npages: 34,
+			pagesz: 32768,
+		},
 	} {
 		t.Run(test.fname, func(t *testing.T) {
 			f, err := Open(test.fname)
