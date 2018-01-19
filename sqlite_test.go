@@ -16,6 +16,7 @@ func TestFileOpen(t *testing.T) {
 		npages  int
 		pagesz  int
 		tables  []Table
+		tblcount int
 	}{
 		{
 			fname:   "testdata/test-1.sqlite",
@@ -78,6 +79,7 @@ func TestFileOpen(t *testing.T) {
 			version: 3020000,
 			npages: 28,
 			pagesz: 4096,
+			tblcount: 11,
 		},
 		{
 			// Firefox history sqlite db
@@ -85,6 +87,7 @@ func TestFileOpen(t *testing.T) {
 			version: 3020001,
 			npages: 34,
 			pagesz: 32768,
+			tblcount: 10,
 		},
 	} {
 		t.Run(test.fname, func(t *testing.T) {
@@ -107,11 +110,18 @@ func TestFileOpen(t *testing.T) {
 			}
 
 			// Check tables
+			if test.tblcount > 0 {
+				if len(f.Tables()) == test.tblcount {
+					t.Skip("parsed table size matches, but we aren't checking each table")
+				}
+				t.Errorf("%s: tables=%d, want=%d", test.fname, len(f.Tables()), test.tblcount)
+			}
+			// check each table
 			if len(f.Tables()) != len(test.tables) {
 				t.Errorf("%s: tables=%d, want=%d", test.fname, len(f.Tables()), len(test.tables))
 			}
 			n := len(f.Tables())
-			if n < len(test.tables) {
+			if n > len(test.tables) {
 				n = len(test.tables)
 			}
 			for i := 0; i < n; i++ {
