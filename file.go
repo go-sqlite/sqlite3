@@ -191,6 +191,11 @@ func (db *DbFile) init() error {
 			pageid: int(pageid.Int()),
 		}
 
+		// skip internal tables, aka don't expose them
+		if strings.HasPrefix(table.name, "sqlite_") {
+			return nil
+		}
+
 		def := rec.Values[4].(string)
 		def = strings.Replace(def, "CREATE TABLE "+table.name, "", 1)
 		def = strings.Replace(def, "\n", "", -1)
