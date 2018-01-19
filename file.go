@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	idxtokens = []string{"UNIQUE", "PRIMARY KEY"}
+	tblconstraints = []string{"CHECK", "FOREIGN KEY", "UNIQUE", "PRIMARY KEY"}
 )
 
 type DbFile struct {
@@ -220,8 +220,8 @@ func (db *DbFile) init() error {
 			}
 
 			parts[i] = strings.TrimSpace(parts[i])
-			for j := range idxtokens {
-				if strings.HasPrefix(parts[i], idxtokens[j]) {
+			for j := range tblconstraints {
+				if strings.HasPrefix(parts[i], tblconstraints[j]) {
 					// drop all other elements
 					parts = parts[:i]
 				}
