@@ -19,6 +19,10 @@ const (
 	printfDebug = false
 )
 
+var (
+	idxtokens = []string{"UNIQUE", "PRIMARY KEY"}
+)
+
 type DbFile struct {
 	pager  pager
 	header dbHeader
@@ -209,6 +213,21 @@ func (db *DbFile) init() error {
 		def = strings.TrimSpace(def)
 
 		parts := strings.Split(def, ",")
+		// strip away statements like 'UNIQUE ...' or 'PRIMARY KEY ...' from a table definition
+		for i := range parts {
+			if i >= len(parts) {
+				break // we removed at least one elem, so avoid out of bounds read
+			}
+
+			parts[i] = strings.TrimSpace(parts[i])
+			for j := range idxtokens {
+				if strings.HasPrefix(parts[i], idxtokens[j]) {
+					// drop all other elements
+					parts = parts[:i]
+				}
+			}
+		}
+
 		table.cols = make([]Column, len(parts))
 		for i := range parts {
 			parts[i] = strings.TrimSpace(parts[i])
