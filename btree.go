@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/gonuts/binary"
 )
 
 type btheader struct {
@@ -158,11 +160,14 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 			v = vv
 
 		case StInt24:
-			bs := make([]byte, 3)
-			n64, n := varint(bs)
-			var vv int32 = int32(n64)
-			recbuf = recbuf[int(n):]
-			v = vv
+			bs := make([]byte, 4)
+			if n := copy(bs[1:], recbuf); n != 3 {
+				panic(fmt.Sprintf("read %d bytes", n))
+			}
+			if bs[1]&0x80 > 0 {
+				bs[0] = 0xff
+			}
+			v = binary.BigEndian.Uint32(bs)
 
 		case StInt32:
 			var vv int32
@@ -174,11 +179,14 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 			v = vv
 
 		case StInt48:
-			bs := make([]byte, 6)
-			n64, n := varint(bs)
-			var vv int64 = int64(n64)
-			recbuf = recbuf[int(n):]
-			v = vv
+			bs := make([]byte, 8)
+			if n := copy(bs[2:], recbuf); n != 6 {
+				panic(fmt.Sprintf("read %d bytes", n))
+			}
+			if bs[2]&0x80 > 0 {
+				bs[0] = 0xff
+			}
+			v = binary.BigEndian.Uint64(bs)
 
 		case StInt64:
 			var vv int64
