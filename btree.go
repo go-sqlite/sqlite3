@@ -142,60 +142,22 @@ func (btree *btreeTable) decodeRecord(payload []byte) (Record, error) {
 		var v interface{}
 		switch st {
 		case StInt8:
-			var vv int8
-			n, err := unmarshal(recbuf, &vv)
-			if err != nil {
-				panic(err)
-			}
-			recbuf = recbuf[int(n):]
-			v = vv
+			recbuf, v = readStInt8(recbuf)
 
 		case StInt16:
-			var vv int16
-			n, err := unmarshal(recbuf, &vv)
-			if err != nil {
-				panic(err)
-			}
-			recbuf = recbuf[int(n):]
-			v = vv
+			recbuf, v = readStInt16(recbuf)
 
 		case StInt24:
-			bs := make([]byte, 4)
-			if n := copy(bs[1:], recbuf); n != 3 {
-				panic(fmt.Sprintf("read %d bytes", n))
-			}
-			if bs[1]&0x80 > 0 {
-				bs[0] = 0xff
-			}
-			v = binary.BigEndian.Uint32(bs)
+			recbuf, v = readStInt24(recbuf)
 
 		case StInt32:
-			var vv int32
-			n, err := unmarshal(recbuf, &vv)
-			if err != nil {
-				panic(err)
-			}
-			recbuf = recbuf[int(n):]
-			v = vv
+			recbuf, v = readStInt32(recbuf)
 
 		case StInt48:
-			bs := make([]byte, 8)
-			if n := copy(bs[2:], recbuf); n != 6 {
-				panic(fmt.Sprintf("read %d bytes", n))
-			}
-			if bs[2]&0x80 > 0 {
-				bs[0] = 0xff
-			}
-			v = binary.BigEndian.Uint64(bs)
+			recbuf, v = readStInt48(recbuf)
 
 		case StInt64:
-			var vv int64
-			n, err := unmarshal(recbuf, &vv)
-			if err != nil {
-				panic(err)
-			}
-			recbuf = recbuf[int(n):]
-			v = vv
+			recbuf, v = readStInt64(recbuf)
 
 		case StFloat:
 			var vv float64
@@ -469,4 +431,62 @@ func (btree *btreeTable) visitRecordsInorder(f func(*int64, Record) error) error
 			return f(ci.RowID, rec)
 		}
 	})
+}
+
+func readStInt8(buf []byte) ([]byte, int8) {
+	var v int8
+	n, err := unmarshal(buf, &v)
+	if err != nil {
+		panic(err)
+	}
+	return buf[int(n):], v
+}
+
+func readStInt16(buf []byte) ([]byte, int16) {
+	var v int16
+	n, err := unmarshal(buf, &v)
+	if err != nil {
+		panic(err)
+	}
+	return buf[int(n):], v
+}
+
+func readStInt24(buf []byte) ([]byte, uint32) {
+	bs := make([]byte, 4)
+	if n := copy(bs[1:], buf); n != 3 {
+		panic(fmt.Sprintf("read %d bytes", n))
+	}
+	if bs[1]&0x80 > 0 {
+		bs[0] = 0xff
+	}
+	return buf[3:], binary.BigEndian.Uint32(bs)
+}
+
+func readStInt32(buf []byte) ([]byte, int32) {
+	var v int32
+	n, err := unmarshal(buf, &v)
+	if err != nil {
+		panic(err)
+	}
+	return buf[int(n):], v
+}
+
+func readStInt48(buf []byte) ([]byte, uint64) {
+	bs := make([]byte, 8)
+	if n := copy(bs[2:], buf); n != 6 {
+		panic(fmt.Sprintf("read %d bytes", n))
+	}
+	if bs[2]&0x80 > 0 {
+		bs[0] = 0xff
+	}
+	return buf[6:], binary.BigEndian.Uint64(bs)
+}
+
+func readStInt64(buf []byte) ([]byte, int64) {
+	var v int64
+	n, err := unmarshal(buf, &v)
+	if err != nil {
+		panic(err)
+	}
+	return buf[int(n):], v
 }
