@@ -28,12 +28,8 @@ func TestFileOpen(t *testing.T) {
 					name:   "tbl1",
 					pageid: 2,
 					cols: []Column{
-						Column{
-							name: "one",
-						},
-						Column{
-							name: "two",
-						},
+						Column{name: "one"},
+						Column{name: "two"},
 					},
 				},
 			},
@@ -48,27 +44,17 @@ func TestFileOpen(t *testing.T) {
 					name:   "tbl1",
 					pageid: 2,
 					cols: []Column{
-						Column{
-							name: "one",
-						},
-						Column{
-							name: "two",
-						},
+						Column{name: "one"},
+						Column{name: "two"},
 					},
 				},
 				Table{
 					name:   "tbl2",
 					pageid: 3,
 					cols: []Column{
-						Column{
-							name: "f1",
-						},
-						Column{
-							name: "f2",
-						},
-						Column{
-							name: "f3",
-						},
+						Column{name: "f1"},
+						Column{name: "f2"},
+						Column{name: "f3"},
 					},
 				},
 			},
@@ -88,6 +74,27 @@ func TestFileOpen(t *testing.T) {
 			npages: 34,
 			pagesz: 32768,
 			tblcount: 10,
+		},
+		{
+			// Cover all integer types
+			fname:   "testdata/all-int-types.sqlite",
+			version: 3019003,
+			npages:  2,
+			pagesz:  4096,
+			tables: []Table{
+				Table{
+					name:   "ints",
+					pageid: 2,
+					cols: []Column{
+						Column{name: "i8"},
+						Column{name: "i16"},
+						Column{name: "i24"},
+						Column{name: "i32"},
+						Column{name: "i48"},
+						Column{name: "i64"},
+					},
+				},
+			},
 		},
 	} {
 		t.Run(test.fname, func(t *testing.T) {
