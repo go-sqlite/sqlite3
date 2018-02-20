@@ -231,8 +231,12 @@ func (db *DbFile) init() error {
 		table.cols = make([]Column, len(parts))
 		for i := range parts {
 			parts[i] = strings.TrimSpace(parts[i])
-			idx := strings.Index(parts[i], " ")
-			table.cols[i].name = parts[i][:idx]
+			idx := strings.Index(parts[i], " ") // find where col name ends and type starts
+			if idx > 0 {
+				table.cols[i].name = parts[i][:idx]
+			} else {
+				table.cols[i].name = parts[i]
+			}
 		}
 
 		if printfDebug {

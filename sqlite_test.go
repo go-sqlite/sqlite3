@@ -96,6 +96,23 @@ func TestFileOpen(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Partial Safari History.db
+			fname: "testdata/safari-partial.sqlite",
+			version: 3019003,
+			npages: 3,
+			pagesz: 4096,
+			tables: []Table{
+				Table{
+					name: "metadata",
+					pageid: 2,
+					cols: []Column{
+						Column{name: "key"},
+						Column{name: "value"},
+					},
+				},
+			},
+		},
 	} {
 		t.Run(test.fname, func(t *testing.T) {
 			f, err := Open(test.fname)
