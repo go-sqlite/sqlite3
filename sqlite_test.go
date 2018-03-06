@@ -5,7 +5,12 @@
 package sqlite3
 
 import (
+	"bytes"
+	"fmt"
+	"os"
 	"testing"
+
+	"io/ioutil"
 )
 
 func TestFileOpen(t *testing.T) {
@@ -164,6 +169,38 @@ func TestFileOpen(t *testing.T) {
 						t.Errorf("table %s column: got=%q, want=%q", ftbl.name, ftbl.cols[j].name, test.tables[i].cols[j].name)
 					}
 				}
+			}
+		})
+
+		name := fmt.Sprintf("%s:OpenFrom", test.fname)
+		t.Run(name, func(t *testing.T) {
+			d, err := os.Open(test.fname)
+			if err != nil {
+				t.Fatalf("could not open file %s: %v", test.fname, err)
+			}
+			defer d.Close()
+			data, err := ioutil.ReadAll(d)
+			if err != nil {
+				t.Fatalf("could not read file %s: %v", test.fname, err)
+			}
+			r := bytes.NewReader(data)
+
+			f, err := OpenFrom(r)
+			if err != nil {
+				t.Fatalf("could not open db %s: %v", test.fname, err)
+			}
+			defer f.Close()
+
+			if f.Version() != test.version {
+				t.Errorf("version=%d. want=%d", f.Version(), test.version)
+			}
+
+			if f.PageSize() != test.pagesz {
+				t.Errorf("page size = %d. want=%d", f.PageSize(), test.pagesz)
+			}
+
+			if f.NumPage() != test.npages {
+				t.Errorf("num-pages = %d. want=%d", f.NumPage(), test.npages)
 			}
 		})
 	}

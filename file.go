@@ -6,6 +6,7 @@ package sqlite3
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
@@ -27,6 +28,7 @@ type DbFile struct {
 	pager  pager
 	header dbHeader
 	tables []Table
+	close  func() error
 }
 
 type dbHeader struct {
@@ -63,23 +65,12 @@ type dbHeader struct {
 	SqliteVersion int32    // SQLITE_VERSION_NUMBER
 }
 
-func Open(fname string) (*DbFile, error) {
-	f, err := os.Open(fname)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() {
-		if err != nil {
-			f.Close()
-		}
-	}()
-
+func OpenFrom(f io.ReadSeeker) (*DbFile, error) {
 	var db DbFile
 
 	dec := binary.NewDecoder(f)
 	dec.Order = binary.BigEndian
-	err = dec.Decode(&db.header)
+	err := dec.Decode(&db.header)
 	if err != nil {
 		return nil, err
 	}
@@ -90,13 +81,15 @@ func Open(fname string) (*DbFile, error) {
 		// the page-size, round down to the nearest page.
 		// except, any file larger than 0-bytes in size, is considered to
 		// contain at least one page.
-		fi, err := f.Stat()
+		size, err := f.Seek(0, io.SeekEnd)
 		if err != nil {
 			return nil, err
 		}
-		sz := fi.Size()
+		if _, err := f.Seek(0, io.SeekStart); err != nil {
+			return nil, err
+		}
 		pagesz := int64(db.header.PageSize)
-		npages := (sz + pagesz - 1) / pagesz
+		npages := (size + pagesz - 1) / pagesz
 		db.header.DbSize = int32(npages)
 	}
 
@@ -126,9 +119,27 @@ func Open(fname string) (*DbFile, error) {
 	return &db, err
 }
 
+func Open(fname string) (*DbFile, error) {
+	f, err := os.Open(fname)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := OpenFrom(f)
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	db.close = f.Close
+	return db, nil
+}
+
 func (db *DbFile) Close() error {
 	db.pager.Delete()
-	return db.pager.f.Close()
+	if db.close != nil {
+		return db.close()
+	}
+	return nil
 }
 
 // PageSize returns the database page size in bytes
@@ -224,6 +235,7 @@ func (db *DbFile) init() error {
 				if strings.HasPrefix(parts[i], tblconstraints[j]) {
 					// drop all other elements
 					parts = parts[:i]
+					break
 				}
 			}
 		}
