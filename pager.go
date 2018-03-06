@@ -6,18 +6,18 @@ package sqlite3
 
 import (
 	"fmt"
-	"os"
+	"io"
 )
 
 type pager struct {
-	f      *os.File
+	f      io.ReadSeeker
 	size   int          // page size in bytes
 	npages int          // total number of pages in db
 	pages  map[int]page // cache of pages
 	lru    []int        // list of last used pages
 }
 
-func newPager(f *os.File, size, npages int) pager {
+func newPager(f io.ReadSeeker, size, npages int) pager {
 	pager := pager{
 		f:      f,
 		size:   size,
@@ -40,11 +40,14 @@ func (p *pager) Page(i int) (page, error) {
 		return page, fmt.Errorf("sqlite3: out of range (%d > %d)", i, p.npages)
 	}
 
-	pos, _ := p.f.Seek(0, 1)
-	defer p.f.Seek(pos, 0)
+	pos, _ := p.f.Seek(0, io.SeekCurrent)
+	defer p.f.Seek(pos, io.SeekStart)
 
 	buf := make([]byte, p.size)
-	n, err := p.f.ReadAt(buf, int64((i-1)*p.size))
+	if _, err := p.f.Seek(int64((i-1)*p.size), io.SeekStart); err != nil {
+		return page, err
+	}
+	n, err := p.f.Read(buf)
 	if err != nil {
 		return page, err
 	}
