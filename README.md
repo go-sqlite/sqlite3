@@ -50,3 +50,9 @@ func main() {
 	}
 }
 ```
+
+## Contributing
+
+We're always looking for new contributing finding bugs, fixing issues, or writing some docs. If you're interested in contriburing source code changes you'll just need to [pull down the source code](#installation). You can run tests with `go test ./...` in the root of this project.
+
+Make sure to add yourself to `AUTHORS` and `CONTRIBUTORS` if you submit a PR. We want you to take credit for your work!
