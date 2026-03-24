@@ -162,6 +162,11 @@ func (db *DbFile) Version() int {
 	return int(db.header.SqliteVersion)
 }
 
+// UserVersion returns the user version for this database.
+func (db *DbFile) UserVersion() int {
+	return int(db.header.UserVersion)
+}
+
 func (db *DbFile) Tables() []Table {
 	return db.tables
 }
